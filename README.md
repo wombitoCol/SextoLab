@@ -1,9 +1,9 @@
 ## Estructura del proyecto
 
 Entrega-Final/
-├── backend-crud/ # Lab 4 — Spring Boot, CRUD + JWT + Postgres (puerto 8080)
-├── backend-stomp/ # Backend STOMP — Spring Boot, solo broker WebSocket (puerto 8081)
-└── frontend/ # React + Vite — Login, CRUD, canvas y tiempo real (puerto 5173)
+- backend-crud/ # Lab 4 — Spring Boot, CRUD + JWT + Postgres (puerto 8080)
+- backend-stomp/ # Backend STOMP — Spring Boot, solo broker WebSocket (puerto 8081)
+- frontend/ # React + Vite — Login, CRUD, canvas y tiempo real (puerto 5173)
 
 
 ## Cómo ejecutar todo
@@ -50,8 +50,8 @@ Abre `http://localhost:5173` en el navegador.
 
 ### Login
 
-![Antes del Login](![error de vista ya que no se esta logeado](Images/image.png))
-![Login](![Proceso de login](Images/image2.png))
+![Antes del Login](Images/image.png)
+![Login](Images/image2.png)
 ![Luego del Login](Images/image3.png)
 
 ### Creación de un blueprint
