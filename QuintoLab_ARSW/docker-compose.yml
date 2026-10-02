@@ -1,0 +1,17 @@
+version: '3.9'
+services:
+  web:
+    build:
+      context: .
+      # El bundle corre en el navegador del usuario, así que apunta al puerto publicado del backend.
+      args:
+        VITE_API_BASE_URL: http://localhost:8080/api
+        VITE_USE_MOCK: 'false'
+    ports:
+      - '5173:4173'
+    depends_on:
+      - backend
+  backend:
+    image: ghcr.io/your-org/blueprints-backend:latest
+    ports:
+      - '8080:8080'
