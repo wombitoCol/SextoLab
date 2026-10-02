@@ -9,6 +9,7 @@ import co.edu.eci.blueprints.persistence.postgres.entity.BlueprintEntity;
 import co.edu.eci.blueprints.persistence.postgres.entity.BlueprintId;
 import co.edu.eci.blueprints.persistence.postgres.entity.PointEntity;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
@@ -64,6 +65,29 @@ public class PostgresBlueprintPersistence implements BlueprintPersistence {
                 .orElseThrow(() -> new BlueprintNotFoundException("Blueprint not found: %s/%s".formatted(author, name)));
         entity.addPoint(new PointEntity(x, y));
         repository.save(entity);
+    }
+
+    @Override
+    @Transactional
+    public void updateBlueprint(String author, String name, List<Point> points) throws BlueprintNotFoundException {
+        BlueprintEntity entity = repository.findById(new BlueprintId(author, name))
+                .orElseThrow(() -> new BlueprintNotFoundException("Blueprint not found: %s/%s".formatted(author, name)));
+        entity.getPoints().clear();
+        if (points != null) {
+            for (Point p : points) {
+                entity.addPoint(new PointEntity(p.x(), p.y()));
+            }
+        }
+        repository.save(entity);
+    }
+
+    @Override
+    public void deleteBlueprint(String author, String name) throws BlueprintNotFoundException {
+        BlueprintId id = new BlueprintId(author, name);
+        if (!repository.existsById(id)) {
+            throw new BlueprintNotFoundException("Blueprint not found: %s/%s".formatted(author, name));
+        }
+        repository.deleteById(id);
     }
 
     private Blueprint toDomain(BlueprintEntity entity) {

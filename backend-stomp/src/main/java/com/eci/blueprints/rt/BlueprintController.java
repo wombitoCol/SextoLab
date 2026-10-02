@@ -1,16 +1,21 @@
 package com.eci.blueprints.rt;
 
 import com.eci.blueprints.rt.dto.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.ResponseBody;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Controller
 public class BlueprintController {
+
+  private static final Logger log = LoggerFactory.getLogger(BlueprintController.class);
+  // author y name forman parte del tópico: sin puntos ni caracteres raros para no "saltar" a otro plano.
+  private static final Pattern SAFE_ID = Pattern.compile("[\\p{L}\\p{N}_\\- ]{1,64}");
+  private static final int MAX_COORD = 10_000;
 
   private final SimpMessagingTemplate template;
 
@@ -20,13 +25,21 @@ public class BlueprintController {
 
   @MessageMapping("/draw")
   public void onDraw(DrawEvent evt) {
+    if (!isValid(evt)) {
+      log.warn("draw descartado (payload inválido): {}", evt);
+      return;
+    }
+    var topic = "/topic/blueprints." + evt.author() + "." + evt.name();
     var upd = new BlueprintUpdate(evt.author(), evt.name(), List.of(evt.point()));
-    template.convertAndSend("/topic/blueprints." + evt.author() + "." + evt.name(), upd);
+    log.debug("draw {} -> {}", evt.point(), topic);
+    template.convertAndSend(topic, upd);
   }
 
-  @ResponseBody
-  @GetMapping("/api/blueprints/{author}/{name}")
-  public BlueprintUpdate get(@PathVariable String author, @PathVariable String name) {
-    return new BlueprintUpdate(author, name, List.of(new Point(10,10), new Point(40,50)));
+  static boolean isValid(DrawEvent evt) {
+    if (evt == null || evt.point() == null) return false;
+    if (evt.author() == null || !SAFE_ID.matcher(evt.author()).matches()) return false;
+    if (evt.name() == null || !SAFE_ID.matcher(evt.name()).matches()) return false;
+    var p = evt.point();
+    return p.x() >= 0 && p.y() >= 0 && p.x() <= MAX_COORD && p.y() <= MAX_COORD;
   }
 }

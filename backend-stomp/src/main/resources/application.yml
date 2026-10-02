@@ -1,6 +1,14 @@
 server:
   port: 8081
 
+blueprints:
+  # Orígenes permitidos para el handshake WebSocket (separados por coma).
+  allowed-origins: ${BLUEPRINTS_ALLOWED_ORIGINS:http://localhost:5173}
+
+logging:
+  level:
+    com.eci.blueprints.rt: INFO
+
 management:
   endpoints:
     web:

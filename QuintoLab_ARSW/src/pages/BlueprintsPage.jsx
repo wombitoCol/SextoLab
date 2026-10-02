@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
+import { Link } from 'react-router-dom'
 import {
   deleteBlueprint,
   fetchAuthors,
@@ -17,6 +18,13 @@ import { createStompClient, subscribeBlueprint, publishDraw } from '../lib/stomp
 // Backend del broker STOMP (SextoLab) — puerto distinto al del CRUD (Lab 4).
 const STOMP_BASE = import.meta.env.VITE_STOMP_BASE || 'http://localhost:8081'
 
+const RT_STATUS_LABEL = {
+  off: 'desconectado',
+  connecting: 'conectando...',
+  connected: 'en vivo',
+  error: 'sin conexión (reintentando)',
+}
+
 export default function BlueprintsPage() {
   const dispatch = useDispatch()
   const { current, status, error, authors } = useSelector((s) => s.blueprints)
@@ -25,32 +33,41 @@ export default function BlueprintsPage() {
   const [authorInput, setAuthorInput] = useState('')
   const [selectedAuthor, setSelectedAuthor] = useState('')
   const items = useSelector((s) => selectItemsByAuthor(s, selectedAuthor))
-  // Puntos agregados con click sobre el plano actual, pendientes de guardar.
-  const [draft, setDraft] = useState(null)
-  // Puntos recibidos en vivo por STOMP (de otras pestañas/usuarios), aún no guardados.
-  const [live, setLive] = useState(null)
+  // Puntos del plano actual aún sin guardar: los propios (click) y los que llegan en vivo por STOMP.
+  // Se guarda una sola lista para que los puntos remotos no se pierdan mientras uno también dibuja.
+  const [working, setWorking] = useState(null)
+  const [rtMode, setRtMode] = useState('stomp')
+  const [rtStatus, setRtStatus] = useState('off')
   const stompRef = useRef(null)
+  // El callback de la suscripción vive más que un render: lee los puntos guardados desde un ref.
+  const savedPointsRef = useRef([])
+  savedPointsRef.current = current?.points ?? []
 
   useEffect(() => {
     dispatch(fetchAuthors())
   }, [dispatch])
 
   useEffect(() => {
-    setDraft(null)
-    setLive(null)
+    setWorking(null)
   }, [current?.author, current?.name])
 
-  // Conexión STOMP: se suscribe al plano abierto y recibe los puntos que dibujen otros en vivo.
+  // Conexión STOMP: se suscribe al plano abierto (tópico blueprints.{author}.{name}).
   useEffect(() => {
-    if (!current?.author || !current?.name) return undefined
-    const client = createStompClient(STOMP_BASE)
+    if (rtMode !== 'stomp' || !current?.author || !current?.name) {
+      setRtStatus('off')
+      return undefined
+    }
+    const { author, name } = current
+    const client = createStompClient(STOMP_BASE, { onStatus: setRtStatus })
     stompRef.current = client
     let unsubscribe
     client.onConnect = () => {
-      unsubscribe = subscribeBlueprint(client, current.author, current.name, (msg) => {
+      setRtStatus('connected')
+      console.info(`STOMP: suscrito a blueprints.${author}.${name}`)
+      unsubscribe = subscribeBlueprint(client, author, name, (msg) => {
         // El backend manda solo el/los punto(s) nuevo(s) en cada mensaje, no el historial
         // completo — hay que ir acumulando del lado del cliente.
-        setLive((prev) => [...(prev ?? current.points ?? []), ...msg.points])
+        setWorking((prev) => [...(prev ?? savedPointsRef.current), ...msg.points])
       })
     }
     client.activate()
@@ -59,8 +76,14 @@ export default function BlueprintsPage() {
       client.deactivate()
       stompRef.current = null
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.author, current?.name])
+  }, [current?.author, current?.name, rtMode])
+
+  const addPoint = (p) => {
+    // Con STOMP conectado el punto vuelve por el tópico (también a esta pestaña), así que
+    // no se agrega localmente para no duplicarlo. Sin conexión, se dibuja solo en local.
+    if (rtMode === 'stomp' && publishDraw(stompRef.current, current.author, current.name, p)) return
+    setWorking((prev) => [...(prev ?? savedPointsRef.current), p])
+  }
 
   const totalPoints = useMemo(
     () => items.reduce((acc, bp) => acc + (bp.points?.length || 0), 0),
@@ -79,9 +102,9 @@ export default function BlueprintsPage() {
     dispatch(fetchBlueprint({ author: bp.author, name: bp.name }))
   }
 
-  const saveDraft = () => {
-    dispatch(updateBlueprint({ author: current.author, name: current.name, points: draft }))
-    setDraft(null)
+  const saveWorking = () => {
+    dispatch(updateBlueprint({ author: current.author, name: current.name, points: working }))
+    setWorking(null)
   }
 
   const removeCurrent = () => {
@@ -89,7 +112,7 @@ export default function BlueprintsPage() {
     dispatch(deleteBlueprint({ author: current.author, name: current.name }))
   }
 
-  const canvasPoints = draft ?? live ?? current?.points ?? []
+  const canvasPoints = working ?? current?.points ?? []
   const loadingList = status.byAuthor === 'loading'
 
   return (
@@ -184,6 +207,22 @@ export default function BlueprintsPage() {
         <h3 style={{ marginTop: 0 }}>
           Current blueprint: <span data-testid="current-name">{current?.name || '—'}</span>
         </h3>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
+          <label htmlFor="rt-mode">Tiempo real:</label>
+          <select
+            id="rt-mode"
+            className="input"
+            style={{ width: 'auto' }}
+            value={rtMode}
+            onChange={(e) => setRtMode(e.target.value)}
+          >
+            <option value="none">None</option>
+            <option value="stomp">STOMP (Spring)</option>
+          </select>
+          <span className="badge" data-testid="rt-status">
+            {RT_STATUS_LABEL[rtStatus]}
+          </span>
+        </div>
         <ErrorBanner message={error.current} />
         <ErrorBanner
           message={error.save && `No se pudo guardar: ${error.save}. Cambios revertidos.`}
@@ -191,21 +230,17 @@ export default function BlueprintsPage() {
         {status.current === 'loading' && <p className="muted">Cargando plano...</p>}
         <BlueprintCanvas
           points={canvasPoints}
-          onAddPoint={
-            current && isAuthenticated
-              ? (p) => {
-                  setDraft([...canvasPoints, p])
-                  publishDraw(stompRef.current, current.author, current.name, p)
-                }
-              : undefined
-          }
+          onAddPoint={current && isAuthenticated ? addPoint : undefined}
         />
         {current && isAuthenticated && (
           <div className="actions" style={{ marginTop: 12 }}>
-            <button className="btn primary" disabled={!draft} onClick={saveDraft}>
+            <Link className="btn" to="/blueprints/new">
+              Crear
+            </Link>
+            <button className="btn primary" disabled={!working} onClick={saveWorking}>
               Guardar cambios
             </button>
-            <button className="btn" disabled={!draft} onClick={() => setDraft(null)}>
+            <button className="btn" disabled={!working} onClick={() => setWorking(null)}>
               Descartar
             </button>
             <button className="btn danger" onClick={removeCurrent}>

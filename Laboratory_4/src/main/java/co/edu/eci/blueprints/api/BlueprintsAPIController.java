@@ -105,6 +105,43 @@ public class BlueprintsAPIController {
         }
     }
 
+    // PUT /api/v1/blueprints/{author}/{bpname}
+    @Operation(summary = "Reemplazar los puntos de un blueprint existente")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Blueprint actualizado"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Blueprint no encontrado")
+    })
+    @PutMapping("/{author}/{bpname}")
+    @PreAuthorize("hasAuthority('SCOPE_blueprints.write')")
+    public ResponseEntity<ApiResponse<Blueprint>> update(@PathVariable String author, @PathVariable String bpname,
+                                                         @Valid @RequestBody UpdateBlueprintRequest req) {
+        try {
+            services.updateBlueprint(author, bpname, req.points());
+            return ResponseEntity.ok(new ApiResponse<>(200, "Blueprint updated", new Blueprint(author, bpname, req.points())));
+        } catch (BlueprintNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, e.getMessage(), null));
+        }
+    }
+
+    // DELETE /api/v1/blueprints/{author}/{bpname}
+    @Operation(summary = "Eliminar un blueprint")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Blueprint eliminado"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Blueprint no encontrado")
+    })
+    @DeleteMapping("/{author}/{bpname}")
+    @PreAuthorize("hasAuthority('SCOPE_blueprints.write')")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String author, @PathVariable String bpname) {
+        try {
+            services.deleteBlueprint(author, bpname);
+            return ResponseEntity.ok(new ApiResponse<>(200, "Blueprint deleted", null));
+        } catch (BlueprintNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ApiResponse<>(404, e.getMessage(), null));
+        }
+    }
+
+    public record UpdateBlueprintRequest(@Valid java.util.List<Point> points) { }
+
     public record NewBlueprintRequest(
             @NotBlank String author,
             @NotBlank String name,

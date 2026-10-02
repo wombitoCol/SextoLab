@@ -1,0 +1,19 @@
+# Postgres para el backend CRUD (Laboratory_4). Credenciales = Laboratory_4/src/main/resources/application.yml
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: blueprintsdb
+      POSTGRES_USER: blueprints
+      POSTGRES_PASSWORD: blueprints
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U blueprints -d blueprintsdb']
+      interval: 5s
+      retries: 10
+
+volumes:
+  pgdata:
