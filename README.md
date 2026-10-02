@@ -1,9 +1,9 @@
 ## Estructura del proyecto
 
 Entrega-Final/
-- backend-crud/ # Lab 4 — Spring Boot, CRUD + JWT + Postgres (puerto 8080)
+- backend-crud/ # Laboratory4 — Spring Boot, CRUD + JWT + Postgres (puerto 8080)
 - backend-stomp/ # Backend STOMP — Spring Boot, solo broker WebSocket (puerto 8081)
-- frontend/ # React + Vite — Login, CRUD, canvas y tiempo real (puerto 5173)
+- lab5_ARSW/ # React + Vite — Login, CRUD, canvas y tiempo real (puerto 5173)
 
 
 ## Cómo ejecutar todo
